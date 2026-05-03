@@ -53,6 +53,7 @@ export async function importAnimationForUser(input: ImportAnimationInput) {
       byteSize: scan.bytes,
       visibility,
       reviewStatus: visibility === "public" ? "pending" : "private",
+      aiReviewStatus: "unreviewed",
       createdAt: now,
       updatedAt: now,
     }).run();

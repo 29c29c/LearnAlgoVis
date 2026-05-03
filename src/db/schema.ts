@@ -41,6 +41,7 @@ export const animations = sqliteTable("animations", {
   byteSize: integer("byte_size").notNull(),
   visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
   reviewStatus: text("review_status", { enum: ["private", "pending", "approved", "rejected"] }).notNull().default("private"),
+  aiReviewStatus: text("ai_review_status", { enum: ["unreviewed", "ai_approved", "ai_rejected", "manual_approved"] }).notNull().default("unreviewed"),
   rejectedReason: text("rejected_reason"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

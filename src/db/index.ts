@@ -54,6 +54,7 @@ function createSqlite() {
       byte_size INTEGER NOT NULL,
       visibility TEXT NOT NULL DEFAULT 'private',
       review_status TEXT NOT NULL DEFAULT 'private',
+      ai_review_status TEXT NOT NULL DEFAULT 'unreviewed',
       rejected_reason TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -88,6 +89,10 @@ function createSqlite() {
     CREATE INDEX IF NOT EXISTS idx_animations_public ON animations(visibility, review_status, created_at);
     CREATE INDEX IF NOT EXISTS idx_directory_user_order ON directory_items(user_id, sort_order);
   `);
+  const animationColumns = sqlite.prepare("PRAGMA table_info(animations)").all() as Array<{ name: string }>;
+  if (!animationColumns.some((column) => column.name === "ai_review_status")) {
+    sqlite.exec("ALTER TABLE animations ADD COLUMN ai_review_status TEXT NOT NULL DEFAULT 'unreviewed'");
+  }
   return sqlite;
 }
 
