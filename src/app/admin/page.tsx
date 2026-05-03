@@ -27,16 +27,6 @@ export default async function AdminPage() {
     .orderBy(desc(animations.createdAt));
 
   const invites = await db.query.inviteCodes.findMany({ orderBy: desc(inviteCodes.createdAt), limit: 20 });
-  const recentPublic = await db.select({
-    id: animations.id,
-    title: animations.title,
-    reviewStatus: animations.reviewStatus,
-    ownerName: users.name,
-  }).from(animations)
-    .leftJoin(users, eq(animations.ownerId, users.id))
-    .where(eq(animations.visibility, "public"))
-    .orderBy(desc(animations.createdAt))
-    .limit(30);
 
   const aiStatusLabel = {
     unreviewed: "未审核",
@@ -50,6 +40,29 @@ export default async function AdminPage() {
       <PageHeader title="管理后台" description="创建邀请码、审核公开视频，并在必要时从服务器磁盘删除违规 HTML。" />
       <div className="space-y-6">
         <InviteCreator />
+        <section className="panel overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line p-4">
+            <div>
+              <h2 className="text-lg font-black">最近邀请码</h2>
+              <p className="mt-1 text-sm text-ink/55">展示最近创建的 20 个邀请码及使用情况。</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="table-head"><tr><th className="p-3">标签</th><th className="p-3">使用</th><th className="p-3">过期</th></tr></thead>
+              <tbody>
+                {invites.map((invite) => (
+                  <tr key={invite.id} className="border-b border-line last:border-b-0">
+                    <td className="p-3 font-medium">{invite.label || "未命名"}</td>
+                    <td className="p-3">{invite.usedCount}/{invite.maxUses}</td>
+                    <td className="p-3">{invite.expiresAt ? invite.expiresAt.toLocaleDateString("zh-CN") : "长期"}</td>
+                  </tr>
+                ))}
+                {invites.length === 0 && <tr><td className="p-6 text-center text-ink/55" colSpan={3}>暂无邀请码</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section className="panel overflow-hidden">
           <div className="border-b border-line p-4">
             <h2 className="text-lg font-black">待审核作品</h2>
@@ -97,40 +110,6 @@ export default async function AdminPage() {
             <AiReviewButton />
           </div>
         </section>
-        <div className="grid gap-6 xl:grid-cols-2">
-          <section className="panel overflow-hidden">
-            <div className="border-b border-line p-4"><h2 className="text-lg font-black">最近邀请码</h2></div>
-            <table className="w-full text-sm">
-              <thead className="table-head"><tr><th className="p-3">标签</th><th className="p-3">使用</th><th className="p-3">过期</th></tr></thead>
-              <tbody>
-                {invites.map((invite) => (
-                  <tr key={invite.id} className="border-b border-line last:border-b-0">
-                    <td className="p-3">{invite.label || "未命名"}</td>
-                    <td className="p-3">{invite.usedCount}/{invite.maxUses}</td>
-                    <td className="p-3">{invite.expiresAt ? invite.expiresAt.toLocaleDateString("zh-CN") : "长期"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-          <section className="panel overflow-hidden">
-            <div className="border-b border-line p-4"><h2 className="text-lg font-black">公开视频管理</h2></div>
-            <div className="divide-y divide-line">
-              {recentPublic.map((row) => (
-                <div key={row.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="font-bold">{row.title}</div>
-                    <div className="text-sm text-ink/55">{row.ownerName} · {row.reviewStatus}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <a className="btn-secondary h-9 px-3" href={`/preview/${row.id}`} target="_blank" rel="noreferrer">预览</a>
-                    <ActionButton className="btn-danger h-9 px-3" method="DELETE" endpoint={`/api/admin/animations/${row.id}`} confirmText="确定从服务器磁盘删除这个 HTML？">删除</ActionButton>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
       </div>
     </AppShell>
   );
