@@ -15,6 +15,7 @@ export function InviteCreator() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        code: formData.get("code"),
         maxUses: Number(formData.get("maxUses") || 1),
         expiresAt,
       }),
@@ -30,7 +31,11 @@ export function InviteCreator() {
   return (
     <form action={create} className="panel p-5">
       <h2 className="text-lg font-black">创建邀请码</h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <label className="block text-sm font-semibold">
+          邀请码
+          <input name="code" className="input mt-1" placeholder="留空则随机生成" maxLength={64} />
+        </label>
         <label className="block text-sm font-semibold">
           最大使用次数
           <input name="maxUses" type="number" min={1} max={500} defaultValue={1} className="input mt-1" />
