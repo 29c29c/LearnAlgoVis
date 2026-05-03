@@ -82,16 +82,26 @@ export default async function AdminPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
-              <thead className="table-head"><tr><th className="p-3">标签</th><th className="p-3">使用</th><th className="p-3">过期</th></tr></thead>
+              <thead className="table-head"><tr><th className="p-3">邀请码</th><th className="p-3">使用</th><th className="p-3">过期</th><th className="p-3">操作</th></tr></thead>
               <tbody>
                 {invites.map((invite) => (
                   <tr key={invite.id} className="border-b border-line last:border-b-0">
-                    <td className="p-3 font-medium">{invite.label || "未命名"}</td>
+                    <td className="p-3 font-mono font-semibold">{invite.label || "旧邀请码记录"}</td>
                     <td className="p-3">{invite.usedCount}/{invite.maxUses}</td>
                     <td className="p-3">{invite.expiresAt ? invite.expiresAt.toLocaleDateString("zh-CN") : "长期"}</td>
+                    <td className="p-3">
+                      <ActionButton
+                        className="btn-secondary h-8 px-3 text-red-700"
+                        method="DELETE"
+                        endpoint={`/api/admin/invites/${invite.id}`}
+                        confirmText="确定删除这个邀请码？已注册用户不会受影响。"
+                      >
+                        删除
+                      </ActionButton>
+                    </td>
                   </tr>
                 ))}
-                {invites.length === 0 && <tr><td className="p-6 text-center text-ink/55" colSpan={3}>暂无邀请码</td></tr>}
+                {invites.length === 0 && <tr><td className="p-6 text-center text-ink/55" colSpan={4}>暂无邀请码</td></tr>}
               </tbody>
             </table>
           </div>

@@ -9,7 +9,6 @@ import { audit } from "@/lib/audit";
 export const runtime = "nodejs";
 
 const Schema = z.object({
-  label: z.string().trim().max(80).optional(),
   maxUses: z.number().int().min(1).max(500),
   expiresAt: z.string().datetime().nullable().optional(),
 });
@@ -23,13 +22,13 @@ export async function POST(request: Request) {
     await db.insert(inviteCodes).values({
       id,
       codeHash: sha256(code),
-      label: body.label || null,
+      label: code,
       maxUses: body.maxUses,
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       createdBy: admin.id,
       createdAt: new Date(),
     });
-    await audit(admin.id, "invite_create", "invite", id, { maxUses: body.maxUses, label: body.label });
+    await audit(admin.id, "invite_create", "invite", id, { maxUses: body.maxUses, label: code });
     return ok({ id, code });
   } catch (error) {
     return handleRouteError(error);
