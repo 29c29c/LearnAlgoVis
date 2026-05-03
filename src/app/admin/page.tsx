@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { InviteCreator } from "@/components/InviteCreator";
 import { ActionButton } from "@/components/ActionButton";
 import { AiReviewButton } from "@/components/AiReviewButton";
+import { UserWorksManager, type UserWorkGroup } from "@/components/UserWorksManager";
 import { db } from "@/db";
 import { animations, inviteCodes, users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -27,6 +28,38 @@ export default async function AdminPage() {
     .orderBy(desc(animations.createdAt));
 
   const invites = await db.query.inviteCodes.findMany({ orderBy: desc(inviteCodes.createdAt), limit: 20 });
+  const userWorksRows = await db.select({
+    id: animations.id,
+    title: animations.title,
+    byteSize: animations.byteSize,
+    visibility: animations.visibility,
+    ownerId: animations.ownerId,
+    ownerName: users.name,
+    ownerEmail: users.email,
+  }).from(animations)
+    .leftJoin(users, eq(animations.ownerId, users.id))
+    .orderBy(desc(animations.byteSize));
+  const userWorkMap = new Map<string, UserWorkGroup>();
+  for (const row of userWorksRows) {
+    const group = userWorkMap.get(row.ownerId) ?? {
+      userId: row.ownerId,
+      name: row.ownerName || "未知用户",
+      email: row.ownerEmail || "",
+      workCount: 0,
+      totalBytes: 0,
+      works: [],
+    };
+    group.workCount += 1;
+    group.totalBytes += row.byteSize;
+    group.works.push({
+      id: row.id,
+      title: row.title,
+      byteSize: row.byteSize,
+      visibility: row.visibility,
+    });
+    userWorkMap.set(row.ownerId, group);
+  }
+  const userWorkGroups = Array.from(userWorkMap.values()).sort((a, b) => b.totalBytes - a.totalBytes);
 
   const aiStatusLabel = {
     unreviewed: "未审核",
@@ -110,6 +143,7 @@ export default async function AdminPage() {
             <AiReviewButton />
           </div>
         </section>
+        <UserWorksManager groups={userWorkGroups} />
       </div>
     </AppShell>
   );
