@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+
+# Next.js / React build output
+.next/
+out/
+build/
+dist/
+
+# Production / package output
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Local database and user storage
+storage/
+learnalgovis.sqlite
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Private prompts / working notes
+docs/prompt.md
+docs/prompt.*
+docs/**/prompt.md
+docs/**/prompt.*
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/
+
+# Deployment / tooling caches
+.vercel/
+.turbo/
+.eslintcache
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
