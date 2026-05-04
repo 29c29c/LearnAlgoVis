@@ -17,6 +17,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       visibility: "public",
       reviewStatus: "approved",
       aiReviewStatus: "manual_approved",
+      workshopPublished: true,
       rejectedReason: null,
       updatedAt: new Date(),
     }).where(eq(animations.id, id));

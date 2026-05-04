@@ -54,6 +54,7 @@ export async function importAnimationForUser(input: ImportAnimationInput) {
       visibility,
       reviewStatus: visibility === "public" ? "pending" : "private",
       aiReviewStatus: "unreviewed",
+      workshopPublished: false,
       createdAt: now,
       updatedAt: now,
     }).run();

@@ -8,6 +8,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -32,10 +33,12 @@ export type DirectoryRow = {
   ownerName: string;
   reviewStatus: string;
   visibility: string;
+  workshopPublished: boolean;
   createdAt: string;
 };
 
 const UNFILED_ID = "__unfiled__";
+const FOLDER_DROP_PREFIX = "folder-drop:";
 
 function SortableRow({
   row,
@@ -50,7 +53,17 @@ function SortableRow({
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   async function remove() {
-    if (!window.confirm("从目录移除？不会删除原始动画文件。")) return;
+    const ownWork = row.ownerId === currentUserId;
+    if (ownWork && row.workshopPublished && row.visibility === "public" && row.reviewStatus === "approved") {
+      alert("这个作品已经上架到创意工坊。请先点击“转私有”，确认它不再公开展示后，才能从你的目录移除。移除时不会删除服务器文件，也不会影响其他用户已添加的引用。");
+      return;
+    }
+    const warning = ownWork && !row.workshopPublished
+      ? `确定删除自己的作品“${row.title}”？这会从服务器磁盘删除 HTML 文件，并清理所有用户目录里的引用。`
+      : ownWork
+        ? `从你的目录移除已上架过创意工坊的作品“${row.title}”？不会删除服务器磁盘文件，也不会影响其他用户已添加的引用。`
+      : `从目录移除“${row.title}”？这是从创意工坊添加的引用，不会删除服务器磁盘文件。`;
+    if (!window.confirm(warning)) return;
     await fetch(`/api/directory/${row.id}`, { method: "DELETE" });
     window.location.reload();
   }
@@ -107,8 +120,76 @@ function SortableRow({
             : <button className="btn-secondary h-9 px-3" onClick={() => setVisibility("public")}>申请公开</button>
         )}
         <button className="btn-secondary h-9 px-3" onClick={rename}>改名</button>
-        <button className="btn-secondary h-9 px-3 text-red-700" onClick={remove}><Trash2 className="h-4 w-4" />移除</button>
+        <button className="btn-secondary h-9 px-3 text-red-700" onClick={remove}><Trash2 className="h-4 w-4" />{row.ownerId === currentUserId && !row.workshopPublished ? "删除作品" : "移除引用"}</button>
       </div>
+    </div>
+  );
+}
+
+type FolderGroup = {
+  id: string;
+  name: string;
+  items: DirectoryRow[];
+  virtual: boolean;
+};
+
+function FolderSection({
+  group,
+  folder,
+  expanded,
+  folders,
+  currentUserId,
+  onToggle,
+  onRenameFolder,
+  onDeleteFolder,
+}: {
+  group: FolderGroup;
+  folder?: DirectoryFolder;
+  expanded: boolean;
+  folders: DirectoryFolder[];
+  currentUserId: string;
+  onToggle: () => void;
+  onRenameFolder: (folder: DirectoryFolder) => void;
+  onDeleteFolder: (folder: DirectoryFolder) => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id: `${FOLDER_DROP_PREFIX}${group.id}` });
+
+  return (
+    <div>
+      <div
+        ref={setNodeRef}
+        className={`flex w-full items-center gap-3 bg-paper px-4 py-4 text-left transition hover:bg-linen/70 ${isOver ? "bg-emerald-50 ring-2 ring-inset ring-emerald-400" : ""}`}
+      >
+        <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={onToggle}>
+          {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-ink/45" /> : <ChevronRight className="h-4 w-4 shrink-0 text-ink/45" />}
+          <Folder className="h-4 w-4 shrink-0 text-moss" />
+          <div className="min-w-0 flex-1">
+            <div className="font-black">{group.name}</div>
+            <div className="mt-1 text-sm text-ink/55">作品数：{group.items.length} · 可拖动作品到这里归类</div>
+          </div>
+        </button>
+        {folder && (
+          <span className="flex shrink-0 gap-2">
+            <button className="btn-secondary h-8 px-3 text-xs" onClick={() => onRenameFolder(folder)}>改名</button>
+            <button className="btn-secondary h-8 px-3 text-xs text-red-700" onClick={() => onDeleteFolder(folder)}>删除</button>
+          </span>
+        )}
+      </div>
+      {expanded && (
+        <div className="border-t border-line bg-linen/35 p-3">
+          {group.items.length === 0 ? (
+            <div className={`rounded-md border border-dashed bg-paper p-5 text-center text-sm text-ink/55 ${isOver ? "border-emerald-400 bg-emerald-50/60" : "border-line"}`}>这个文件夹还没有作品，可以把动画拖到这里</div>
+          ) : (
+            <SortableContext items={group.items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {group.items.map((row) => (
+                  <SortableRow key={row.id} row={row} folders={folders} currentUserId={currentUserId} />
+                ))}
+              </div>
+            </SortableContext>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -185,11 +266,35 @@ export function DirectoryList({
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const activeItem = items.find((item) => item.id === active.id);
-    const overItem = items.find((item) => item.id === over.id);
-    if (!activeItem || !overItem) return;
+    if (!activeItem) return;
+    const overId = String(over.id);
     const activeFolder = activeItem.folderId || UNFILED_ID;
+    if (overId.startsWith(FOLDER_DROP_PREFIX)) {
+      const targetFolder = overId.slice(FOLDER_DROP_PREFIX.length);
+      if (targetFolder === activeFolder) return;
+      const folderId = targetFolder === UNFILED_ID ? null : targetFolder;
+      setItems((prev) => prev.map((item) => item.id === activeItem.id ? { ...item, folderId } : item));
+      await fetch(`/api/directory/${activeItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+      return;
+    }
+
+    const overItem = items.find((item) => item.id === over.id);
+    if (!overItem) return;
     const overFolder = overItem.folderId || UNFILED_ID;
-    if (activeFolder !== overFolder) return;
+    if (activeFolder !== overFolder) {
+      const folderId = overItem.folderId;
+      setItems((prev) => prev.map((item) => item.id === activeItem.id ? { ...item, folderId } : item));
+      await fetch(`/api/directory/${activeItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      });
+      return;
+    }
 
     const folderItems = items.filter((item) => (item.folderId || UNFILED_ID) === activeFolder);
     const oldIndex = folderItems.findIndex((item) => item.id === active.id);
@@ -232,37 +337,17 @@ export function DirectoryList({
               const expanded = expandedFolders.has(group.id);
               const folder = folders.find((item) => item.id === group.id);
               return (
-                <div key={group.id}>
-                  <button className="flex w-full items-center gap-3 bg-paper px-4 py-4 text-left transition hover:bg-linen/70" onClick={() => toggleFolder(group.id)}>
-                    {expanded ? <ChevronDown className="h-4 w-4 text-ink/45" /> : <ChevronRight className="h-4 w-4 text-ink/45" />}
-                    <Folder className="h-4 w-4 text-moss" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-black">{group.name}</div>
-                      <div className="mt-1 text-sm text-ink/55">作品数：{group.items.length}</div>
-                    </div>
-                    {folder && (
-                      <span className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-                        <button className="btn-secondary h-8 px-3 text-xs" onClick={() => renameFolder(folder)}>改名</button>
-                        <button className="btn-secondary h-8 px-3 text-xs text-red-700" onClick={() => deleteFolder(folder)}>删除</button>
-                      </span>
-                    )}
-                  </button>
-                  {expanded && (
-                    <div className="border-t border-line bg-linen/35 p-3">
-                      {group.items.length === 0 ? (
-                        <div className="rounded-md border border-dashed border-line bg-paper p-5 text-center text-sm text-ink/55">这个文件夹还没有作品</div>
-                      ) : (
-                        <SortableContext items={group.items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-2">
-                            {group.items.map((row) => (
-                              <SortableRow key={row.id} row={row} folders={folders} currentUserId={currentUserId} />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <FolderSection
+                  key={group.id}
+                  group={group}
+                  folder={folder}
+                  expanded={expanded}
+                  folders={folders}
+                  currentUserId={currentUserId}
+                  onToggle={() => toggleFolder(group.id)}
+                  onRenameFolder={renameFolder}
+                  onDeleteFolder={deleteFolder}
+                />
               );
             })}
           </div>

@@ -41,6 +41,7 @@ export default async function AppPage() {
         ownerName: ownerMap.get(row.animation.ownerId) || "未知用户",
         reviewStatus: row.animation.reviewStatus,
         visibility: row.animation.visibility,
+        workshopPublished: Boolean(row.animation.workshopPublished),
         createdAt: row.createdAt.toLocaleDateString("zh-CN"),
       }))} folders={folders.map((folder) => ({
         id: folder.id,

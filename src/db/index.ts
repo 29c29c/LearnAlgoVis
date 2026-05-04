@@ -55,6 +55,7 @@ function createSqlite() {
       visibility TEXT NOT NULL DEFAULT 'private',
       review_status TEXT NOT NULL DEFAULT 'private',
       ai_review_status TEXT NOT NULL DEFAULT 'unreviewed',
+      workshop_published INTEGER NOT NULL DEFAULT 0,
       rejected_reason TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -109,6 +110,8 @@ function createSqlite() {
     }
   }
   addColumnIfMissing("animations", "ai_review_status", "ALTER TABLE animations ADD COLUMN ai_review_status TEXT NOT NULL DEFAULT 'unreviewed'");
+  addColumnIfMissing("animations", "workshop_published", "ALTER TABLE animations ADD COLUMN workshop_published INTEGER NOT NULL DEFAULT 0");
+  sqlite.exec("UPDATE animations SET workshop_published = 1 WHERE review_status = 'approved'");
   addColumnIfMissing("directory_items", "folder_id", "ALTER TABLE directory_items ADD COLUMN folder_id TEXT REFERENCES directory_folders(id) ON DELETE SET NULL");
   return sqlite;
 }
