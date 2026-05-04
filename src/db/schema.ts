@@ -53,7 +53,16 @@ export const directoryItems = sqliteTable("directory_items", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   animationId: text("animation_id").notNull().references(() => animations.id, { onDelete: "cascade" }),
+  folderId: text("folder_id").references(() => directoryFolders.id, { onDelete: "set null" }),
   customTitle: text("custom_title"),
+  sortOrder: integer("sort_order").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+export const directoryFolders = sqliteTable("directory_folders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
@@ -80,6 +89,7 @@ export const aiSettings = sqliteTable("ai_settings", {
 export const userRelations = relations(users, ({ many }) => ({
   animations: many(animations),
   directoryItems: many(directoryItems),
+  directoryFolders: many(directoryFolders),
   sessions: many(sessions),
 }));
 
@@ -114,4 +124,16 @@ export const directoryItemRelations = relations(directoryItems, ({ one }) => ({
     fields: [directoryItems.animationId],
     references: [animations.id],
   }),
+  folder: one(directoryFolders, {
+    fields: [directoryItems.folderId],
+    references: [directoryFolders.id],
+  }),
+}));
+
+export const directoryFolderRelations = relations(directoryFolders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [directoryFolders.userId],
+    references: [users.id],
+  }),
+  items: many(directoryItems),
 }));

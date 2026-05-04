@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db";
-import { directoryItems, users } from "@/db/schema";
+import { directoryFolders, directoryItems, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { DirectoryList } from "@/components/DirectoryList";
@@ -17,6 +17,10 @@ export default async function AppPage() {
     orderBy: asc(directoryItems.sortOrder),
     with: { animation: true },
   });
+  const folders = await db.query.directoryFolders.findMany({
+    where: eq(directoryFolders.userId, user.id),
+    orderBy: asc(directoryFolders.sortOrder),
+  });
   const ownerIds = Array.from(new Set(rows.map((row) => row.animation.ownerId)));
   const owners = ownerIds.length ? await db.select().from(users) : [];
   const ownerMap = new Map(owners.map((owner) => [owner.id, owner.name]));
@@ -31,12 +35,16 @@ export default async function AppPage() {
       <DirectoryList rows={rows.map((row) => ({
         id: row.id,
         animationId: row.animationId,
+        folderId: row.folderId,
         ownerId: row.animation.ownerId,
         title: row.customTitle || row.animation.title,
         ownerName: ownerMap.get(row.animation.ownerId) || "未知用户",
         reviewStatus: row.animation.reviewStatus,
         visibility: row.animation.visibility,
         createdAt: row.createdAt.toLocaleDateString("zh-CN"),
+      }))} folders={folders.map((folder) => ({
+        id: folder.id,
+        name: folder.name,
       }))} currentUserId={user.id} />
     </AppShell>
   );

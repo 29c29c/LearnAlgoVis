@@ -63,7 +63,15 @@ function createSqlite() {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       animation_id TEXT NOT NULL REFERENCES animations(id) ON DELETE CASCADE,
+      folder_id TEXT REFERENCES directory_folders(id) ON DELETE SET NULL,
       custom_title TEXT,
+      sort_order INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS directory_folders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
       sort_order INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );
@@ -88,11 +96,20 @@ function createSqlite() {
     CREATE INDEX IF NOT EXISTS idx_animations_owner ON animations(owner_id);
     CREATE INDEX IF NOT EXISTS idx_animations_public ON animations(visibility, review_status, created_at);
     CREATE INDEX IF NOT EXISTS idx_directory_user_order ON directory_items(user_id, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_directory_folders_user_order ON directory_folders(user_id, sort_order);
   `);
-  const animationColumns = sqlite.prepare("PRAGMA table_info(animations)").all() as Array<{ name: string }>;
-  if (!animationColumns.some((column) => column.name === "ai_review_status")) {
-    sqlite.exec("ALTER TABLE animations ADD COLUMN ai_review_status TEXT NOT NULL DEFAULT 'unreviewed'");
+  function addColumnIfMissing(table: string, column: string, ddl: string) {
+    const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (columns.some((item) => item.name === column)) return;
+    try {
+      sqlite.exec(ddl);
+    } catch (error) {
+      if (error instanceof Error && /duplicate column/i.test(error.message)) return;
+      throw error;
+    }
   }
+  addColumnIfMissing("animations", "ai_review_status", "ALTER TABLE animations ADD COLUMN ai_review_status TEXT NOT NULL DEFAULT 'unreviewed'");
+  addColumnIfMissing("directory_items", "folder_id", "ALTER TABLE directory_items ADD COLUMN folder_id TEXT REFERENCES directory_folders(id) ON DELETE SET NULL");
   return sqlite;
 }
 

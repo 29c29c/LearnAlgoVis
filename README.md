@@ -9,6 +9,7 @@ LearnAlgoVis 是一个 **vibecoding 项目**：它以“快速把想法变成可
 - **用户目录**
   - 每个用户都有独立的算法动画导航页。
   - 支持添加、移除、重命名、拖拽排序目录项。
+  - 支持创建多个文件夹整理作品，文件夹采用折叠展开式展示。
   - 添加别人的公开作品时只保存引用，不重复复制服务器文件。
 
 - **单 HTML 导入**
@@ -88,6 +89,7 @@ http://localhost:3000
 
 ```bash
 DATABASE_URL=./learnalgovis.sqlite
+PORT=3000
 SESSION_SECRET=change-this-to-a-long-random-secret
 ADMIN_EMAIL=admin@example.com
 STORAGE_DIR=./storage
@@ -98,6 +100,7 @@ NEXT_PUBLIC_APP_NAME=LearnAlgoVis
 说明：
 
 - `DATABASE_URL`：SQLite 数据库路径。
+- `PORT`：Next.js 服务监听端口，`npm run dev` 和 `npm run start` 都会读取。
 - `SESSION_SECRET`：必须使用长随机字符串；同时用于加密用户保存的 AI API Key。
 - `ADMIN_EMAIL`：管理员邮箱，首次注册该邮箱会自动成为管理员。
 - `STORAGE_DIR`：HTML 文件存储目录。
@@ -131,6 +134,7 @@ npm install
 
 ```bash
 DATABASE_URL=/www/data/learnalgovis/learnalgovis.sqlite
+PORT=3000
 SESSION_SECRET=请替换为很长的随机字符串
 ADMIN_EMAIL=admin@example.com
 STORAGE_DIR=/www/data/learnalgovis/storage
