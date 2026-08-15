@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import {
   closestCenter,
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -12,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import {
   arrayMove,
+  sortableKeyboardCoordinates,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -39,6 +42,7 @@ export type DirectoryRow = {
 
 const UNFILED_ID = "__unfiled__";
 const FOLDER_DROP_PREFIX = "folder-drop:";
+const FOLDER_SORT_PREFIX = "folder-sort:";
 
 function SortableRow({
   row,
@@ -49,7 +53,10 @@ function SortableRow({
   folders: DirectoryFolder[];
   currentUserId: string;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: row.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: row.id,
+    data: { type: "item" },
+  });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   async function remove() {
@@ -139,6 +146,7 @@ function FolderSection({
   expanded,
   folders,
   currentUserId,
+  folderSortingDisabled,
   onToggle,
   onRenameFolder,
   onDeleteFolder,
@@ -148,18 +156,49 @@ function FolderSection({
   expanded: boolean;
   folders: DirectoryFolder[];
   currentUserId: string;
+  folderSortingDisabled: boolean;
   onToggle: () => void;
   onRenameFolder: (folder: DirectoryFolder) => void;
   onDeleteFolder: (folder: DirectoryFolder) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: `${FOLDER_DROP_PREFIX}${group.id}` });
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef: setSortableNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: `${FOLDER_SORT_PREFIX}${group.id}`,
+    data: { type: "folder" },
+    disabled: group.virtual || folderSortingDisabled,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.75 : 1,
+  };
 
   return (
-    <div>
+    <div ref={setSortableNodeRef} style={style}>
       <div
         ref={setNodeRef}
         className={`flex w-full items-center gap-3 bg-paper px-4 py-4 text-left transition hover:bg-linen/70 ${isOver ? "bg-emerald-50 ring-2 ring-inset ring-emerald-400" : ""}`}
       >
+        {folder && (
+          <button
+            className="shrink-0 cursor-grab touch-none text-ink/35 disabled:cursor-wait disabled:opacity-40 active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+            disabled={folderSortingDisabled}
+            aria-label={`拖拽排序文件夹“${folder.name}”`}
+          >
+            <GripVertical className="h-5 w-5" />
+          </button>
+        )}
         <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={onToggle}>
           {expanded ? <ChevronDown className="h-4 w-4 shrink-0 text-ink/45" /> : <ChevronRight className="h-4 w-4 shrink-0 text-ink/45" />}
           <Folder className="h-4 w-4 shrink-0 text-moss" />
@@ -204,12 +243,25 @@ export function DirectoryList({
   currentUserId: string;
 }) {
   const [items, setItems] = useState(rows);
+  const [orderedFolders, setOrderedFolders] = useState(folders);
+  const [isSavingFolderOrder, setIsSavingFolderOrder] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const collisionDetection = useCallback<CollisionDetection>((args) => {
+    const draggingFolder = args.active.data.current?.type === "folder";
+    const droppableContainers = args.droppableContainers.filter((container) => {
+      const folderTarget = String(container.id).startsWith(FOLDER_SORT_PREFIX);
+      return draggingFolder ? folderTarget : !folderTarget;
+    });
+    return closestCenter({ ...args, droppableContainers });
+  }, []);
 
   const folderGroups = useMemo(() => {
     const groups = [
-      ...folders.map((folder) => ({ id: folder.id, name: folder.name, items: [] as DirectoryRow[], virtual: false })),
+      ...orderedFolders.map((folder) => ({ id: folder.id, name: folder.name, items: [] as DirectoryRow[], virtual: false })),
       { id: UNFILED_ID, name: "未归类", items: [] as DirectoryRow[], virtual: true },
     ];
     const groupMap = new Map(groups.map((group) => [group.id, group]));
@@ -217,8 +269,8 @@ export function DirectoryList({
       const key = item.folderId && groupMap.has(item.folderId) ? item.folderId : UNFILED_ID;
       groupMap.get(key)?.items.push(item);
     }
-    return groups.filter((group) => !group.virtual || group.items.length > 0 || folders.length === 0);
-  }, [folders, items]);
+    return groups.filter((group) => !group.virtual || group.items.length > 0 || orderedFolders.length === 0);
+  }, [orderedFolders, items]);
 
   async function createFolder(formData: FormData) {
     const name = String(formData.get("name") || "").trim();
@@ -265,6 +317,38 @@ export function DirectoryList({
   async function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    if (active.data.current?.type === "folder") {
+      if (isSavingFolderOrder) return;
+      const activeId = String(active.id).slice(FOLDER_SORT_PREFIX.length);
+      const overId = String(over.id).slice(FOLDER_SORT_PREFIX.length);
+      const oldIndex = orderedFolders.findIndex((folder) => folder.id === activeId);
+      const newIndex = orderedFolders.findIndex((folder) => folder.id === overId);
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+
+      const previousFolders = orderedFolders;
+      const nextFolders = arrayMove(orderedFolders, oldIndex, newIndex);
+      setOrderedFolders(nextFolders);
+      setIsSavingFolderOrder(true);
+      try {
+        const response = await fetch("/api/directory/folders/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: nextFolders.map((folder) => folder.id) }),
+        });
+        if (response.ok) return;
+
+        setOrderedFolders(previousFolders);
+        const data = await response.json().catch(() => null);
+        alert(data?.message || "保存文件夹排序失败，请重试。");
+      } catch {
+        setOrderedFolders(previousFolders);
+        alert("保存文件夹排序失败，请检查网络后重试。");
+      } finally {
+        setIsSavingFolderOrder(false);
+      }
+      return;
+    }
+
     const activeItem = items.find((item) => item.id === active.id);
     if (!activeItem) return;
     const overId = String(over.id);
@@ -331,25 +415,31 @@ export function DirectoryList({
           <p className="mt-2 text-sm text-ink/60">先导入一个单 HTML 算法动画，或者从创意工坊添加别人公开的作品。</p>
         </div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={onDragEnd}>
           <div className="panel divide-y divide-line overflow-hidden">
-            {folderGroups.map((group) => {
-              const expanded = expandedFolders.has(group.id);
-              const folder = folders.find((item) => item.id === group.id);
-              return (
-                <FolderSection
-                  key={group.id}
-                  group={group}
-                  folder={folder}
-                  expanded={expanded}
-                  folders={folders}
-                  currentUserId={currentUserId}
-                  onToggle={() => toggleFolder(group.id)}
-                  onRenameFolder={renameFolder}
-                  onDeleteFolder={deleteFolder}
-                />
-              );
-            })}
+            <SortableContext
+              items={orderedFolders.map((folder) => `${FOLDER_SORT_PREFIX}${folder.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              {folderGroups.map((group) => {
+                const expanded = expandedFolders.has(group.id);
+                const folder = orderedFolders.find((item) => item.id === group.id);
+                return (
+                  <FolderSection
+                    key={group.id}
+                    group={group}
+                    folder={folder}
+                    expanded={expanded}
+                    folders={orderedFolders}
+                    currentUserId={currentUserId}
+                    folderSortingDisabled={isSavingFolderOrder}
+                    onToggle={() => toggleFolder(group.id)}
+                    onRenameFolder={renameFolder}
+                    onDeleteFolder={deleteFolder}
+                  />
+                );
+              })}
+            </SortableContext>
           </div>
         </DndContext>
       )}

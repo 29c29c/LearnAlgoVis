@@ -29,7 +29,7 @@ export default async function AppPage() {
     <AppShell user={user}>
       <PageHeader
         title="我的算法目录"
-        description="这里保存你自己的动画和从创意工坊添加的引用。拖拽可以调整顺序，移除目录项不会删除服务器上的原始 HTML。"
+        description="这里保存你自己的动画和从创意工坊添加的引用。拖动文件夹左侧手柄或作品可以调整顺序，移除目录项不会删除服务器上的原始 HTML。"
         action={<Link href="/import" className="btn-primary">导入动画</Link>}
       />
       <DirectoryList rows={rows.map((row) => ({
